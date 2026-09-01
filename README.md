@@ -132,6 +132,19 @@ Vercel also documents that cron may invoke the same run more than once. Writes a
 — `station_status` has a `(station_id, observed_at)` primary key with `ON CONFLICT DO NOTHING`
 — so a duplicate poll writes nothing.
 
+## Storage split
+
+| Store | Holds | Why |
+|---|---|---|
+| **Supabase Postgres** | Live collection only | Vercel needs an always-on writable store |
+| **Local DuckDB** | Trips + all Phase 1-3 analysis | Batch work; nothing needs it hosted |
+
+Trips deliberately do **not** go in Supabase: 1.68M rows for three months would be ~316 MB,
+63% of the 500 MB free tier, collapsing collection runway from ~7 weeks to ~2.5. The same
+data is 87 MB in DuckDB. `analysis/sync_from_postgres.py` mirrors collection locally, which
+is also the pressure valve on the free tier - once rows are safely local, old ones can be
+pruned from Postgres.
+
 ## Layout
 
 ```

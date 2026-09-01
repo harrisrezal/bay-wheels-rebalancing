@@ -21,3 +21,5 @@ venv/
 .env
 .env.local
 .venv/
+*.duckdb
+data/trips_raw/

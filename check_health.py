@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Collection health audit — the gate on Phase 1.
 
-Reads Postgres when DATABASE_URL is set, otherwise the local SQLite database.
+Reads Postgres via DATABASE_URL (or .env).
 
 The gate is BUCKET COVERAGE, not poll count. What Phase 1 actually needs is that every
 5-minute bucket contains at least one observation; how many polls fired is only a proxy,
@@ -46,20 +46,6 @@ def load_pg(dsn, since):
     return polls, rows, stations, size, "postgres"
 
 
-def load_sqlite(since):
-    import sqlite3
-    db = Path(os.environ.get("BW_DB", ROOT / "data" / "baywheels.db"))
-    if not db.exists():
-        return None
-    conn = sqlite3.connect(db)
-    where, params = ("WHERE polled_at >= ?", [since.timestamp()]) if since else ("", [])
-    polls = [(r[0], r[1], r[2]) for r in conn.execute(
-        f"SELECT polled_at, status, error FROM poll_log {where} ORDER BY polled_at", params)]
-    rows, stations = conn.execute(
-        "SELECT COUNT(*), COUNT(DISTINCT station_id) FROM station_status").fetchone()
-    conn.close()
-    return polls, rows, stations, db.stat().st_size / 1e6, "sqlite"
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -75,11 +61,10 @@ def main():
         except Exception:
             pass
     dsn = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
-    loaded = load_pg(dsn, since) if dsn else load_sqlite(since)
-    if not loaded:
-        print("No data source found. Set DATABASE_URL or run the local poller first.")
+    if not dsn:
+        print("DATABASE_URL is not set (and no .env found).")
         return 1
-    polls, rows, stations, size_mb, backend = loaded
+    polls, rows, stations, size_mb, backend = load_pg(dsn, since)
     if not polls:
         print("No polls logged yet.")
         return 1
