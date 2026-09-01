@@ -15,3 +15,8 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# Vercel
+.vercel/
+.env
+.env.local
