@@ -1,0 +1,17 @@
+# Collected data — regenerable by running the poller, and far too large for git.
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local logs
+logs/
+*.log
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+.idea/
+.vscode/
