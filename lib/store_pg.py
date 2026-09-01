@@ -41,7 +41,13 @@ def _dsn():
 def connect():
     # autocommit: each poll is a handful of small statements; an open transaction
     # held across a network fetch is exactly what exhausts a pooled connection limit.
-    return psycopg.connect(_dsn(), autocommit=True)
+    #
+    # prepare_threshold=None disables prepared statements. psycopg3 prepares any
+    # statement it sees 5 times, and Supabase's transaction-mode pooler (Supavisor on
+    # port 6543) does NOT support prepared statements. Without this the poller works
+    # for four polls and then starts failing — set it explicitly rather than relying on
+    # whichever port the connection string happens to use.
+    return psycopg.connect(_dsn(), autocommit=True, prepare_threshold=None)
 
 
 def ensure_schema(conn):
