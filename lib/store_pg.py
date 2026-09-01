@@ -13,10 +13,28 @@ ROOT = Path(__file__).resolve().parent.parent
 STATUS_FIELDS = gbfs.STATUS_FIELDS
 
 
+def _load_dotenv():
+    """Read .env for local runs so the connection string never has to be typed into a
+    shell command (and therefore into shell history). On Vercel the env vars are already
+    set and there is no .env, so this is a no-op there."""
+    env = ROOT / ".env"
+    if not env.exists():
+        return
+    for line in env.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip().strip("'\""))
+
+
 def _dsn():
     dsn = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
     if not dsn:
-        raise RuntimeError("DATABASE_URL is not set")
+        _load_dotenv()
+        dsn = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
+    if not dsn:
+        raise RuntimeError("DATABASE_URL is not set (and no .env found)")
     return dsn
 
 

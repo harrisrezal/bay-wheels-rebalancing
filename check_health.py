@@ -67,6 +67,13 @@ def main():
     args = ap.parse_args()
     since = (datetime.now(timezone.utc) - timedelta(days=args.days)) if args.days else None
 
+    if not (os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")):
+        sys.path.insert(0, str(ROOT))
+        try:
+            from lib.store_pg import _load_dotenv
+            _load_dotenv()
+        except Exception:
+            pass
     dsn = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")
     loaded = load_pg(dsn, since) if dsn else load_sqlite(since)
     if not loaded:

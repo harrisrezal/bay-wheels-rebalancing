@@ -20,3 +20,4 @@ venv/
 .vercel/
 .env
 .env.local
+.venv/
