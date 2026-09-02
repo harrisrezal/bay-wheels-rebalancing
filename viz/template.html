@@ -1,0 +1,318 @@
+<title>Bay Wheels Fleet Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F7F6F3; --surface:#FFFFFF; --sunk:#EFEDE8; --line:#E1DED6;
+  --ink:#15171C; --muted:#666C7A; --faint:#9AA0AC;
+  --electric:#0B7E9C; --brass:#8A6A22; --alarm:#C0392B; --dim:#C6CAD2;
+  --shadow:0 1px 2px rgba(20,22,28,.06),0 8px 24px rgba(20,22,28,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F1218; --surface:#171B23; --sunk:#12151C; --line:#262C38;
+    --ink:#E9E6E0; --muted:#868C9A; --faint:#5A6170;
+    --electric:#4CC9E8; --brass:#C9A961; --alarm:#E2574C; --dim:#39414F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0F1218; --surface:#171B23; --sunk:#12151C; --line:#262C38;
+  --ink:#E9E6E0; --muted:#868C9A; --faint:#5A6170;
+  --electric:#4CC9E8; --brass:#C9A961; --alarm:#E2574C; --dim:#39414F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:Archivo,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:34px 22px 60px;display:flex;flex-direction:column;gap:22px}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--faint);margin:0 0 10px
+}
+h1{font-size:clamp(30px,4.6vw,46px);line-height:1.02;letter-spacing:-.028em;margin:0;font-weight:700;text-wrap:balance}
+h1 em{font-style:normal;color:var(--electric)}
+.sub{margin:12px 0 0;max-width:62ch;color:var(--muted);font-size:15px;line-height:1.55}
+
+.bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow)}
+.bar-l{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+button{font-family:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);
+  background:var(--sunk);color:var(--ink);font-size:13px;font-weight:500;padding:9px 15px;transition:.15s}
+button:hover{border-color:var(--faint)}
+button:focus-visible{outline:2px solid var(--electric);outline-offset:2px}
+#play{min-width:92px;background:var(--ink);color:var(--ground);border-color:var(--ink);font-weight:600}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;padding:9px 16px;font-size:12px;
+  letter-spacing:.05em;text-transform:uppercase;font-family:"IBM Plex Mono",monospace;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--electric);color:var(--ground);font-weight:600}
+.clock{font-family:"IBM Plex Mono",monospace;font-size:20px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.clock span{font-size:12px;color:var(--faint);margin-left:8px;font-weight:400}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+  box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--dim)}
+.stat.s-starved::before{background:var(--electric)}
+.stat.s-empty::before{background:var(--alarm)}
+.stat.s-full::before{background:var(--brass)}
+.stat .k{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--faint)}
+.stat .v{font-family:"IBM Plex Mono",monospace;font-size:29px;font-weight:600;
+  font-variant-numeric:tabular-nums;margin-top:5px;letter-spacing:-.02em}
+.stat .n{font-size:11.5px;color:var(--muted);margin-top:3px}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);overflow:hidden}
+.phead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:13px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ptitle{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.phint{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint)}
+canvas{display:block;width:100%}
+#map{height:500px}
+#tl{height:172px;cursor:ew-resize}
+
+.legend{display:flex;flex-wrap:wrap;gap:16px;padding:11px 16px;border-top:1px solid var(--line);
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+.note{font-size:13px;line-height:1.6;color:var(--muted);max-width:70ch}
+.note strong{color:var(--ink);font-weight:600}
+footer{border-top:1px solid var(--line);padding-top:16px;font-family:"IBM Plex Mono",monospace;
+  font-size:11px;color:var(--faint);line-height:1.7}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Bay Wheels &middot; San Francisco &middot; 633 stations</p>
+    <h1>Most stations look fine.<br>Until you ask for an <em>ebike</em>.</h1>
+    <p class="sub">Fourteen hours of live fleet state, sampled every two minutes. Scrub the
+      timeline to watch supply move across the city — then switch the view from all bikes to
+      ebikes only, and watch the map change.</p>
+  </header>
+
+  <div class="bar">
+    <div class="bar-l">
+      <button id="play">▶ Play</button>
+      <div class="clock" id="clock">—<span id="date"></span></div>
+    </div>
+    <div class="seg" role="group" aria-label="Availability measure">
+      <button id="mAll" aria-pressed="true">All bikes</button>
+      <button id="mE" aria-pressed="false">Ebikes only</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat s-starved"><div class="k" id="k1">Ebike-starved</div>
+      <div class="v" id="v1">—</div><div class="n" id="n1">stations with none available</div></div>
+    <div class="stat s-empty"><div class="k">Completely empty</div>
+      <div class="v" id="v2">—</div><div class="n">no bikes of any kind</div></div>
+    <div class="stat s-full"><div class="k">Full</div>
+      <div class="v" id="v3">—</div><div class="n">no free dock to return to</div></div>
+    <div class="stat"><div class="k">Bikes available</div>
+      <div class="v" id="v4">—</div><div class="n" id="n4">across the system</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="phead"><span class="ptitle">Fleet state</span>
+      <span class="phint" id="maphint">three service areas, each fitted to its own footprint</span></div>
+    <canvas id="map"></canvas>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="panel">
+    <div class="phead"><span class="ptitle">Stations with no ebikes available</span>
+      <span class="phint">click or drag to scrub</span></div>
+    <canvas id="tl"></canvas>
+  </div>
+
+  <p class="note"><strong>What you're looking at.</strong> Ebikes are 82% of all Bay Wheels
+    trips, so a station holding only classic bikes is serving under a fifth of demand while
+    counting as stocked. Across this window <strong>22.9% of station-observations had zero
+    ebikes</strong> while open for business — against 7.4% with no bikes at all. The gap between
+    those two numbers is invisible to any metric that counts bikes.</p>
+
+  <footer>
+    Source: Bay Wheels GBFS v2.3, polled every 2 min into Postgres, resampled onto a 5-minute
+    grid.<br>
+    Counts are lower bounds: state snapshots cannot see movements that cancel out between polls.
+  </footer>
+</div>
+
+<script>
+const DATA = __DATA__;
+const S = DATA.series, F = DATA.frames, ST = DATA.stations;
+let i = 0, mode = "all", playing = false, timer = null;
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString("en-US");
+
+// ---- map: three fitted panels, one per service area ----
+// A single bounding box spans 64km x 57km and is ~70% empty water and freeway between
+// three disconnected service areas. Small multiples, each fitted to its own cluster,
+// use the space and let density inside each city actually read.
+const ZONES = [0,1,2].map(z=>{
+  const pts = ST.map((s,k)=>({...s,k})).filter(s=>s.z===z);
+  const la = pts.map(p=>p.la), lo = pts.map(p=>p.lo);
+  return {z, pts, n:pts.length, name:DATA.zoneNames[z],
+          bb:{n:Math.max(...la), s:Math.min(...la), e:Math.max(...lo), w:Math.min(...lo)}};
+});
+function drawMap(){
+  const c = $("map"), dpr = devicePixelRatio || 1;
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W*dpr; c.height = H*dpr;
+  const x = c.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0);
+  x.clearRect(0,0,W,H);
+
+  // SF left (largest), East Bay top-right, San Jose bottom-right — roughly true relative position
+  const g = 12, splitX = W*0.56;
+  const panels = [
+    {...ZONES[0], x:0,        y:0,       w:splitX-g/2, h:H},
+    {...ZONES[1], x:splitX+g/2, y:0,       w:W-splitX-g/2, h:H/2-g/2},
+    {...ZONES[2], x:splitX+g/2, y:H/2+g/2, w:W-splitX-g/2, h:H/2-g/2},
+  ];
+  const f = F[i], C = {
+    ok:css("--dim"), star:css("--electric"), empty:css("--alarm"),
+    full:css("--brass"), off:css("--faint")
+  };
+  const order = [["0",C.ok,2.2],["4",C.off,1.9],["3",C.full,3.1],["1",C.star,3.7],["2",C.empty,4]];
+
+  for (const p of panels){
+    x.save();
+    x.beginPath(); x.rect(p.x,p.y,p.w,p.h); x.clip();
+    x.strokeStyle = css("--line"); x.lineWidth = 1;
+    x.strokeRect(p.x+.5, p.y+.5, p.w-1, p.h-1);
+
+    x.fillStyle = css("--faint");
+    x.font = '600 10.5px "IBM Plex Mono", ui-monospace, monospace';
+    x.fillText(p.name.toUpperCase(), p.x+12, p.y+21);
+    x.fillStyle = css("--dim");
+    x.fillText(p.n + " stations", p.x+12, p.y+36);
+
+    const pad = 30, latMid=(p.bb.n+p.bb.s)/2, kx=Math.cos(latMid*Math.PI/180);
+    const gw=(p.bb.e-p.bb.w)*kx || 1e-6, gh=(p.bb.n-p.bb.s) || 1e-6;
+    const sc = Math.min((p.w-pad*2)/gw, (p.h-pad*2-14)/gh);
+    const ox = p.x+(p.w-gw*sc)/2, oy = p.y+14+(p.h-14-gh*sc)/2;
+    const PX = s => ox+(s.lo-p.bb.w)*kx*sc, PY = s => oy+(p.bb.n-s.la)*sc;
+
+    for (const [code,col,r] of order){
+      for (const s of p.pts){
+        if (f[s.k] !== code) continue;
+        if (mode==="e" && code==="0") continue;
+        if (code==="1" || code==="2"){
+          x.globalAlpha=.14; x.beginPath(); x.arc(PX(s),PY(s),r*2.7,0,6.284);
+          x.fillStyle=col; x.fill();
+        }
+        x.globalAlpha=(code==="0"||code==="4")?.5:.92;
+        x.beginPath(); x.arc(PX(s),PY(s),r,0,6.284); x.fillStyle=col; x.fill();
+      }
+    }
+    x.globalAlpha=1; x.restore();
+  }
+}
+
+// ---- timeline ----
+function drawTL(){
+  const c = $("tl"), dpr = devicePixelRatio || 1;
+  const W = c.clientWidth, H = c.clientHeight;
+  c.width = W*dpr; c.height = H*dpr;
+  const x = c.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0);
+  x.clearRect(0,0,W,H);
+  const pad = {t:16,b:26,l:8,r:8};
+  const key = mode==="e" ? "starved" : "empty";
+  const vals = S.map(d=>mode==="e"?d.starved:d.empty);
+  const mx = Math.max(...vals)*1.12, ih = H-pad.t-pad.b;
+  const X = k => pad.l + k*(W-pad.l-pad.r)/(S.length-1);
+  const Y = v => pad.t + ih - (v/mx)*ih;
+
+  x.strokeStyle = css("--line"); x.lineWidth = 1;
+  for (let g=0; g<=3; g++){
+    const y = pad.t + ih*g/3; x.beginPath(); x.moveTo(pad.l,y); x.lineTo(W-pad.r,y); x.stroke();
+  }
+  const col = mode==="e" ? css("--electric") : css("--alarm");
+  const grad = x.createLinearGradient(0,pad.t,0,pad.t+ih);
+  grad.addColorStop(0, col+"66"); grad.addColorStop(1, col+"05");
+  x.beginPath(); x.moveTo(X(0), pad.t+ih);
+  vals.forEach((v,k)=>x.lineTo(X(k), Y(v)));
+  x.lineTo(X(S.length-1), pad.t+ih); x.closePath(); x.fillStyle = grad; x.fill();
+  x.beginPath(); vals.forEach((v,k)=> k?x.lineTo(X(k),Y(v)):x.moveTo(X(k),Y(v)));
+  x.strokeStyle = col; x.lineWidth = 1.8; x.stroke();
+
+  // hour ticks
+  x.fillStyle = css("--faint"); x.font = '10px "IBM Plex Mono", monospace';
+  S.forEach((d,k)=>{ const t=new Date(d.t);
+    if (t.getMinutes()===0 && t.getHours()%3===0){
+      x.globalAlpha=.5; x.beginPath(); x.moveTo(X(k),pad.t); x.lineTo(X(k),pad.t+ih);
+      x.strokeStyle=css("--line"); x.lineWidth=1; x.stroke(); x.globalAlpha=1;
+      x.fillText(String(t.getHours()).padStart(2,"0")+":00", X(k)-16, H-8);
+    }});
+
+  // playhead
+  x.beginPath(); x.moveTo(X(i),pad.t-6); x.lineTo(X(i),pad.t+ih);
+  x.strokeStyle = css("--ink"); x.lineWidth=1.5; x.stroke();
+  x.beginPath(); x.arc(X(i), Y(vals[i]), 4.5, 0, 6.284);
+  x.fillStyle = css("--ground"); x.fill();
+  x.strokeStyle = col; x.lineWidth=2.5; x.stroke();
+}
+
+function render(){
+  const d = S[i], t = new Date(d.t);
+  $("clock").firstChild.nodeValue =
+    String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0");
+  $("date").textContent = t.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})+" · PT";
+  $("v1").textContent = fmt(d.starved);
+  $("v2").textContent = fmt(d.empty);
+  $("v3").textContent = fmt(d.full);
+  $("v4").textContent = fmt(mode==="e" ? d.ebikes : d.bikes);
+  $("n4").textContent = mode==="e" ? "ebikes across the system" : "across the system";
+  drawMap(); drawTL();
+}
+
+$("play").onclick = () => {
+  playing = !playing;
+  $("play").textContent = playing ? "❚❚ Pause" : "▶ Play";
+  if (playing){ timer = setInterval(()=>{ i = (i+1) % S.length; render(); }, 110); }
+  else clearInterval(timer);
+};
+function setMode(m){
+  mode = m;
+  $("mAll").setAttribute("aria-pressed", m==="all");
+  $("mE").setAttribute("aria-pressed", m==="e");
+  $("k1").textContent = m==="e" ? "Ebike-starved" : "Ebike-starved";
+  $("maphint").textContent = m==="e"
+    ? "showing only stations that fail an ebike rider"
+    : "three service areas, each fitted to its own footprint";
+  render();
+}
+$("mAll").onclick = ()=>setMode("all");
+$("mE").onclick = ()=>setMode("e");
+
+function scrub(ev){
+  const c = $("tl"), r = c.getBoundingClientRect();
+  const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+  i = Math.max(0, Math.min(S.length-1, Math.round(px/r.width*(S.length-1))));
+  render();
+}
+let dragging=false;
+const tl = $("tl");
+tl.addEventListener("pointerdown", e=>{dragging=true; tl.setPointerCapture(e.pointerId); scrub(e);});
+tl.addEventListener("pointermove", e=>{ if(dragging) scrub(e); });
+tl.addEventListener("pointerup", ()=>dragging=false);
+
+$("legend").innerHTML = [
+  ["--dim","Healthy"],["--electric","No ebikes"],["--alarm","No bikes at all"],
+  ["--brass","No free docks"],["--faint","Out of service"]
+].map(([v,l])=>`<span><i style="background:var(${v})"></i>${l}</span>`).join("");
+
+addEventListener("resize", ()=>{ drawMap(); drawTL(); });
+matchMedia("(prefers-color-scheme:dark)").addEventListener("change", ()=>{drawMap();drawTL();});
+render();
+</script>
