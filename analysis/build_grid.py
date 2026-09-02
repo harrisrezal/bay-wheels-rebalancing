@@ -67,9 +67,15 @@ def main():
         s.num_docks_disabled,
         s.is_installed, s.is_renting, s.is_returning,
         s.last_reported,
-        epoch(g.bucket - s.last_reported) > 3600                     AS is_stale,
+        -- Staleness is measured against WHEN WE OBSERVED the state, not against the
+        -- bucket we are filling forward into. A carried-forward cell is not evidence
+        -- that the station stopped reporting; whether our coverage is old is a separate
+        -- question, already handled by the poll-coverage cap. Comparing to the bucket
+        -- made every station look stale after any polling gap, which silently zeroed
+        -- is_serving system-wide and made starvation counts drop to 0.
+        epoch(s.observed_at - s.last_reported) > 3600                AS is_stale,
         (s.is_installed = 1 AND s.is_renting = 1
-         AND NOT (epoch(g.bucket - s.last_reported) > 3600))         AS is_serving
+         AND NOT (epoch(s.observed_at - s.last_reported) > 3600))    AS is_serving
     FROM (SELECT bucket, station_id FROM covered CROSS JOIN stations WHERE observed) g
     ASOF LEFT JOIN station_status s
       ON s.station_id = g.station_id AND s.observed_at <= g.bucket

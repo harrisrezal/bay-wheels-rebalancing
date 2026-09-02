@@ -41,8 +41,11 @@ def load_pg(dsn, since):
             params)]
         rows, stations = conn.execute(
             "SELECT count(*), count(DISTINCT station_id) FROM station_status").fetchone()
-        size = conn.execute(
-            "SELECT pg_database_size(current_database())").fetchone()[0] / 1e6
+        # OUR tables only. pg_database_size includes Supabase's ~10 MB of baseline
+        # schemas (auth, storage, realtime, extensions), which is fixed overhead and
+        # would inflate any growth-rate figure computed from it.
+        size = conn.execute("""SELECT coalesce(sum(pg_total_relation_size(tablename::text)),0)
+                              FROM pg_tables WHERE schemaname='public'""").fetchone()[0] / 1e6
     return polls, rows, stations, size, "postgres"
 
 
@@ -97,7 +100,7 @@ def main():
         print(f"  longest gap     {fmt_dur(longest)} starting "
               f"{datetime.fromtimestamp(longest_at):%Y-%m-%d %H:%M}")
     print(f"  status rows     {rows:,}   stations {stations}")
-    print(f"  database        {size_mb:.1f} MB"
+    print(f"  our tables      {size_mb:.1f} MB"
           + (f"   (~{size_mb/days:.1f} MB/day)" if days > 0.5 else ""))
 
     if errors:
