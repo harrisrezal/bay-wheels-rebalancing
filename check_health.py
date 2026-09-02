@@ -23,6 +23,12 @@ BUCKET_S = 300
 COVERAGE_GATE = 98.0     # % of 5-min buckets that must contain an observation
 GATE_DAYS = 7
 
+# Collection moved from a laptop launchd job to Vercel cron at this instant. The earlier
+# data is real and kept for analysis, but it was collected on a host that slept, so it
+# must not be judged against a gate it predates — including it dragged coverage down
+# permanently and the gate could never pass.
+GATE_START = "2026-09-01T14:44:00-07:00"
+
 
 def fmt_dur(seconds):
     m, s = divmod(int(seconds), 60)
@@ -54,7 +60,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=float, default=None)
     args = ap.parse_args()
-    since = (datetime.now(timezone.utc) - timedelta(days=args.days)) if args.days else None
+    gate_start = datetime.fromisoformat(GATE_START)
+    since = (datetime.now(timezone.utc) - timedelta(days=args.days)) if args.days else gate_start
 
     if not (os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL")):
         sys.path.insert(0, str(ROOT))
@@ -81,7 +88,7 @@ def main():
     # Bucket coverage: how much of the timeline is actually observed.
     covered = {int(t // BUCKET_S) for t, _, _ in ok}
     expected = int(window // BUCKET_S) + 1
-    coverage = len(covered) / expected * 100 if expected else 0.0
+    coverage = min(100.0, len(covered) / expected * 100) if expected else 0.0
 
     ts = [p[0] for p in ok]
     longest, longest_at = 0, None
@@ -91,7 +98,7 @@ def main():
 
     print(f"Bay Wheels collection health  [{backend}]")
     print("=" * 48)
-    print(f"  window          {datetime.fromtimestamp(first):%Y-%m-%d %H:%M} "
+    print(f"  since cutover   {datetime.fromtimestamp(first):%Y-%m-%d %H:%M} "
           f"→ {datetime.fromtimestamp(last):%Y-%m-%d %H:%M}  ({fmt_dur(window)})")
     print(f"  BUCKET COVERAGE {len(covered):,} of {expected:,} 5-min buckets "
           f"({coverage:.2f}%)   gate: ≥{COVERAGE_GATE}%")
