@@ -1,0 +1,58 @@
+.root{position:fixed;inset:0}
+
+.head{position:absolute;top:22px;left:24px;z-index:2;pointer-events:none;max-width:min(46ch,52vw)}
+.eyebrow{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);margin:0 0 9px}
+.h1{margin:0;font-size:clamp(22px,2.6vw,34px);line-height:1.08;letter-spacing:-.025em;
+  font-weight:700;text-wrap:balance;text-shadow:0 2px 18px rgba(11,14,20,.85)}
+.h1 em{font-style:normal;color:var(--electric)}
+
+.panel{position:absolute;top:22px;right:24px;z-index:2;width:264px;display:flex;
+  flex-direction:column;gap:13px;padding:16px;border-radius:12px;
+  background:var(--panel);backdrop-filter:blur(14px);border:1px solid var(--line);
+  box-shadow:0 16px 44px rgba(0,0,0,.45)}
+
+.clockRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.clock{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.day{font-size:10.5px;color:var(--faint);margin-top:5px;letter-spacing:.05em}
+.play{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);
+  background:var(--ink);color:var(--ground);font-size:14px;line-height:1;flex:none}
+.play:hover{opacity:.9}
+
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:8px 6px;
+  font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+  font-family:"IBM Plex Mono",ui-monospace,monospace}
+.seg button[aria-pressed="true"]{background:var(--electric);color:#08222B;font-weight:600}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0}
+.stats div{padding:9px 10px;border-radius:8px;background:rgba(255,255,255,.028);
+  border-left:2px solid var(--dim)}
+.stats dt{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);
+  /* two-line box so cards stay aligned whether or not the label wraps */
+  min-height:2.1em;line-height:1.05;display:flex;align-items:flex-start}
+.stats dd{margin:4px 0 0;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.statEbike{border-left-color:var(--electric)!important}
+.statEmpty{border-left-color:var(--alarm)!important}
+.statFull{border-left-color:var(--brass)!important}
+
+.vanRow{font-size:10.5px;color:var(--muted);padding:9px 10px;border-radius:7px;
+  background:rgba(255,255,255,.028);line-height:1.45}
+.vanNight{color:var(--electric);background:rgba(76,201,232,.09)}
+
+.jump{display:flex;flex-wrap:wrap;gap:6px}
+.jump button{flex:1 1 auto;border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:6px;padding:6px 8px;font-size:10px;letter-spacing:.04em}
+.jump button:hover{color:var(--ink);border-color:var(--faint)}
+
+.legend{position:absolute;left:24px;bottom:150px;z-index:2;display:flex;flex-wrap:wrap;gap:14px;
+  margin:0;padding:9px 13px;list-style:none;border-radius:8px;font-size:10.5px;color:var(--muted);
+  background:var(--panel);backdrop-filter:blur(14px);border:1px solid var(--line)}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.ring{border:1.6px solid #fff;background:transparent!important}
+
+@media (max-width:900px){
+  .panel{position:absolute;top:auto;bottom:150px;right:12px;left:12px;width:auto}
+  .head{max-width:none;right:24px}
+  .legend{display:none}
+}
