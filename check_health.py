@@ -44,7 +44,7 @@ def load_pg(dsn, since):
         # OUR tables only. pg_database_size includes Supabase's ~10 MB of baseline
         # schemas (auth, storage, realtime, extensions), which is fixed overhead and
         # would inflate any growth-rate figure computed from it.
-        size = conn.execute("""SELECT coalesce(sum(pg_total_relation_size(tablename::text)),0)
+        size = conn.execute("""SELECT coalesce(sum(pg_total_relation_size(format('%I.%I', schemaname, tablename)::regclass)),0)
                               FROM pg_tables WHERE schemaname='public'""").fetchone()[0] / 1e6
     return polls, rows, stations, size, "postgres"
 
