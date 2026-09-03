@@ -3,13 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { Map as BaseMap, useControl } from "react-map-gl/maplibre";
+import { Map as BaseMap, useControl, type MapRef } from "react-map-gl/maplibre";
 import type { Fleet } from "@/lib/types";
 import { STATE } from "@/lib/types";
 import Timeline from "./Timeline";
 import styles from "./FleetMonitor.module.css";
 
-const BASEMAP = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+/**
+ * Basemap fallback chain. Both are free and keyless, but they serve their tiles,
+ * sprites and glyphs from different hosts — so if a content blocker or network
+ * filters one CDN, the other still renders. The map stalls silently when a
+ * sub-resource is blocked (style parses, source attaches, nothing ever paints),
+ * so we advance the chain rather than sit on a blank canvas.
+ */
+const BASEMAPS = [
+  { name: "CARTO", url: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" },
+  { name: "OpenFreeMap", url: "https://tiles.openfreemap.org/styles/dark" },
+];
+const STYLE_TIMEOUT_MS = 4500;
 
 const RGB = {
   healthy:  [ 57,  65,  79] as [number, number, number],
@@ -50,7 +61,11 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
   const [playing, setPlaying] = useState(false);
   const [view, setView] = useState({ ...VIEWS[0], pitch: 0, bearing: 0 });
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [diag, setDiag] = useState<string[] | null>(null);
+  const [styleIdx, setStyleIdx] = useState(0);
   const raf = useRef<number | null>(null);
+  const mapRef = useRef<MapRef | null>(null);
   const last = useRef(0);
 
   // Van events bucketed by frame, so the map can pulse them as time passes.
@@ -169,6 +184,66 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
   const isNight = hour >= 23 || hour < 6;
   const vansNow = (vansByBucket.get(i) ?? []).length;
 
+  useEffect(() => {
+    if (mapLoaded) return;
+    const id = setTimeout(() => {
+      if (!mapLoaded && styleIdx < BASEMAPS.length - 1) {
+        setStyleIdx((n) => n + 1);
+        setMapError(null);
+      }
+    }, STYLE_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [mapLoaded, styleIdx]);
+
+  useEffect(() => {
+    if (mapLoaded || mapError) return;
+    const id = setTimeout(async () => {
+      if (mapLoaded || mapError) return;
+      const out: string[] = [];
+      const gl = document.createElement("canvas").getContext("webgl2");
+      out.push(`WebGL2: ${gl ? "yes" : "NO — maplibre cannot run"}`);
+      const el = document.querySelector(".maplibregl-map");
+      out.push(`map container: ${el ? "mounted" : "NOT mounted"}`);
+      const cv = document.querySelector(".maplibregl-canvas") as HTMLCanvasElement | null;
+      out.push(`map canvas: ${cv ? `${cv.clientWidth}x${cv.clientHeight}` : "absent"}`);
+      out.push(`style tried: ${BASEMAPS.map((b, n) => n === styleIdx ? b.name + "*" : b.name).join(" → ")}`);
+      const probe = async (label: string, url: string) => {
+        try {
+          const r = await fetch(url, { mode: "cors" });
+          out.push(`${label}: ${r.status} ${r.ok ? "ok" : "FAILED"}`);
+        } catch (e) {
+          out.push(`${label}: BLOCKED (${(e as Error).message.slice(0, 40)})`);
+        }
+      };
+      const styleUrl = BASEMAPS[styleIdx].url;
+      await probe("style", styleUrl);
+      try {
+        const sj = await (await fetch(styleUrl)).json();
+        const src = Object.values(sj.sources ?? {})[0] as { url?: string; tiles?: string[] };
+        if (src?.url) await probe("tiles.json", src.url);
+        else if (src?.tiles?.[0]) await probe("tile host", src.tiles[0].replace(/\{[zxy]\}/g, "0"));
+        if (sj.sprite) await probe("sprite", sj.sprite + ".json");
+        if (sj.glyphs) await probe("glyphs",
+          sj.glyphs.replace("{fontstack}", "Open Sans Regular").replace("{range}", "0-255"));
+      } catch { out.push("sub-resources: could not read style"); }
+      const m = mapRef.current?.getMap();
+      if (!m) {
+        out.push("map instance: UNREACHABLE via ref");
+      } else {
+        out.push(`styleLoaded: ${m.isStyleLoaded()}  ·  mapLoaded: ${m.loaded()}`);
+        try {
+          const src = Object.keys(m.getStyle()?.sources ?? {});
+          out.push(`sources: ${src.length ? src.join(", ") : "none"}`);
+        } catch { out.push("sources: getStyle() threw"); }
+        const c = m.getCanvas();
+        out.push(`gl context: ${c.getContext("webgl2") ? "webgl2" : c.getContext("webgl") ? "webgl1" : "NONE"}`);
+        out.push(`center: ${m.getCenter().lng.toFixed(3)}, ${m.getCenter().lat.toFixed(3)} @ z${m.getZoom().toFixed(1)}`);
+      }
+      setDiag(out);
+    }, 6000);
+    return () => clearTimeout(id);
+  }, [mapLoaded, mapError]);
+
   const jump = useCallback((v: (typeof VIEWS)[number]) => {
     setView((s) => ({ ...s, longitude: v.longitude, latitude: v.latitude, zoom: v.zoom }));
   }, []);
@@ -176,12 +251,13 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
   return (
     <main className={styles.root}>
       <BaseMap
-        reuseMaps
-        mapStyle={BASEMAP}
+        ref={mapRef}
+        mapStyle={BASEMAPS[styleIdx].url}
         longitude={view.longitude}
         latitude={view.latitude}
         zoom={view.zoom}
         onMove={(e) => setView((s) => ({ ...s, ...e.viewState }))}
+        onLoad={() => setMapLoaded(true)}
         onError={(e) => setMapError(e.error?.message ?? "basemap failed to load")}
         dragRotate={false}
         style={{ position: "absolute", inset: 0 }}
@@ -200,6 +276,14 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
           }
         />
       </BaseMap>
+
+      {diag && !mapLoaded && (
+        <div className={styles.mapError} role="status">
+          <strong>Basemap did not load</strong>
+          {diag.map((d) => (<span key={d} className="mono">{d}</span>))}
+          <span className={styles.mapErrorHint}>Station data is unaffected.</span>
+        </div>
+      )}
 
       {mapError && (
         <div className={styles.mapError} role="status">
