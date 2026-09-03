@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import DeckGL from "@deck.gl/react";
 import { ScatterplotLayer } from "@deck.gl/layers";
-import { Map as BaseMap } from "react-map-gl/maplibre";
+import { MapboxOverlay } from "@deck.gl/mapbox";
+import { Map as BaseMap, useControl } from "react-map-gl/maplibre";
 import type { Fleet } from "@/lib/types";
 import { STATE } from "@/lib/types";
 import Timeline from "./Timeline";
@@ -28,12 +28,28 @@ const VIEWS = [
 
 const STEP_MS = 110;
 
+/**
+ * deck.gl as a maplibre control rather than as the container.
+ *
+ * With <DeckGL><Map/></DeckGL>, deck owns the DOM and only renders its children once
+ * it has initialised, so anything that delays or fails deck's setup takes the basemap
+ * with it — the map never mounts and you get points floating on the page background.
+ * Inverting it makes maplibre the root: the basemap always renders, and deck draws
+ * over it as an overlay.
+ */
+function DeckOverlay(props: { layers: unknown[]; getTooltip?: unknown }) {
+  const overlay = useControl(() => new MapboxOverlay({ interleaved: false, ...props } as never));
+  (overlay as MapboxOverlay).setProps(props as never);
+  return null;
+}
+
 export default function FleetMonitor({ data }: { data: Fleet }) {
   const { stations, series, frames, ebikes, vans } = data;
   const [i, setI] = useState(0);
   const [mode, setMode] = useState<"all" | "ebike">("all");
   const [playing, setPlaying] = useState(false);
   const [view, setView] = useState({ ...VIEWS[0], pitch: 0, bearing: 0 });
+  const [mapError, setMapError] = useState<string | null>(null);
   const raf = useRef<number | null>(null);
   const last = useRef(0);
 
@@ -159,23 +175,41 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
 
   return (
     <main className={styles.root}>
-      <DeckGL
-        initialViewState={view}
-        controller={{ dragRotate: false }}
-        layers={layers}
-        getTooltip={({ object }: any) =>
-          object?.s && {
-            html: `<b>${object.s.n}</b><br/>${eb[object.k]} ebikes · ${object.s.c} docks`,
-            style: {
-              background: "rgba(18,22,30,.95)", color: "#E9E6E0", fontSize: "12px",
-              padding: "7px 10px", borderRadius: "6px", border: "1px solid #242B38",
-              fontFamily: "Archivo, sans-serif",
-            },
-          }
-        }
+      <BaseMap
+        reuseMaps
+        mapStyle={BASEMAP}
+        longitude={view.longitude}
+        latitude={view.latitude}
+        zoom={view.zoom}
+        onMove={(e) => setView((s) => ({ ...s, ...e.viewState }))}
+        onError={(e) => setMapError(e.error?.message ?? "basemap failed to load")}
+        dragRotate={false}
+        style={{ position: "absolute", inset: 0 }}
       >
-        <BaseMap reuseMaps mapStyle={BASEMAP} />
-      </DeckGL>
+        <DeckOverlay
+          layers={layers}
+          getTooltip={({ object }: any) =>
+            object?.s && {
+              html: `<b>${object.s.n}</b><br/>${eb[object.k]} ebikes · ${object.s.c} docks`,
+              style: {
+                background: "rgba(18,22,30,.95)", color: "#E9E6E0", fontSize: "12px",
+                padding: "7px 10px", borderRadius: "6px", border: "1px solid #242B38",
+                fontFamily: "Archivo, sans-serif",
+              },
+            }
+          }
+        />
+      </BaseMap>
+
+      {mapError && (
+        <div className={styles.mapError} role="status">
+          <strong>Basemap unavailable</strong>
+          <span>{mapError}</span>
+          <span className={styles.mapErrorHint}>
+            Station data below is unaffected — only the map tiles failed.
+          </span>
+        </div>
+      )}
 
       <header className={styles.head}>
         <p className={`${styles.eyebrow} mono`}>Bay Wheels · 633 stations · sampled every 2 min</p>

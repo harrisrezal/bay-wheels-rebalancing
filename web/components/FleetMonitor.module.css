@@ -56,3 +56,12 @@
   .head{max-width:none;right:24px}
   .legend{display:none}
 }
+
+/* Surfaced when maplibre cannot initialise (no WebGL2, blocked tiles, bad style URL).
+   Without this a failed basemap is indistinguishable from a dark background. */
+.mapError{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;
+  display:flex;flex-direction:column;gap:6px;max-width:330px;padding:16px 18px;
+  border-radius:10px;background:var(--panel);backdrop-filter:blur(14px);
+  border:1px solid var(--alarm);text-align:center;font-size:12.5px;color:var(--muted)}
+.mapError strong{color:var(--alarm);font-size:13px}
+.mapErrorHint{color:var(--faint);font-size:11px}
