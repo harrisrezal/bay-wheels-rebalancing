@@ -12,7 +12,8 @@ export type Point = {
   ebikes: number;
   starved: number; // stations serving with zero ebikes
   empty: number;   // stations serving with zero bikes
-  full: number;    // stations with no free dock
+  full: number;   // stations with no free dock
+  short?: number; // stocked but short of expected demand
 };
 
 export type Fleet = {
@@ -21,6 +22,9 @@ export type Fleet = {
   series: Point[];
   /** One char per station per bucket: 0 healthy 1 no-ebikes 2 empty 3 full 4 off 9 unknown */
   frames: string[];
+  /** Same shape, but relative to demand: 0 adequate 1 starved-under-demand
+   *  5 stocked-but-short-of-demand 4 off 9 unknown */
+  dframes: string[];
   /** Ebikes available per station per bucket, capped at 35 */
   ebikes: number[][];
   /** [bucketIndex, stationIndex, bikesMoved] — sign gives direction */
@@ -29,5 +33,8 @@ export type Fleet = {
 
 /** Station state codes, as they appear in `frames`. */
 export const STATE = {
-  HEALTHY: "0", NO_EBIKES: "1", EMPTY: "2", FULL: "3", OFF: "4", UNKNOWN: "9",
+  HEALTHY: "0", NO_EBIKES: "1", EMPTY: "2", FULL: "3", OFF: "4",
+  /** Stocked, but holding less than an hour of expected demand. */
+  SHORT: "5",
+  UNKNOWN: "9",
 } as const;

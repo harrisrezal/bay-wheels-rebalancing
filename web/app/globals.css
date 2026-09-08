@@ -12,6 +12,7 @@
   --brass:#C9A961;      /* classic bikes / saturation */
   --alarm:#E2574C;      /* no bikes at all */
   --dim:#39414F;        /* healthy, deliberately recessive */
+  --warn:#E8944C;       /* stocked but short of demand */
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;height:100%;background:var(--ground);color:var(--ink);

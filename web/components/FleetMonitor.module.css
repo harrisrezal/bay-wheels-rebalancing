@@ -19,8 +19,8 @@
 .play:hover{opacity:.9}
 
 .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
-.seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:8px 6px;
-  font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+.seg button{flex:1;border:0;background:transparent;color:var(--muted);padding:8px 4px;
+  font-size:10px;letter-spacing:.05em;text-transform:uppercase;
   font-family:"IBM Plex Mono",ui-monospace,monospace}
 .seg button[aria-pressed="true"]{background:var(--electric);color:#08222B;font-weight:600}
 
@@ -34,6 +34,7 @@
 .statEbike{border-left-color:var(--electric)!important}
 .statEmpty{border-left-color:var(--alarm)!important}
 .statFull{border-left-color:var(--brass)!important}
+.statShort{border-left-color:var(--warn)!important}
 
 .vanRow{font-size:10.5px;color:var(--muted);padding:9px 10px;border-radius:7px;
   background:rgba(255,255,255,.028);line-height:1.45}
