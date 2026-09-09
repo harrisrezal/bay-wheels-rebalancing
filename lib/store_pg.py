@@ -163,3 +163,81 @@ def poll_once():
         "duration_ms": int((time.time() - started) * 1000),
         "error": error,
     }
+
+
+# Movement thresholds for vehicle CDC. GPS jitters by a few metres while a bike sits
+# still, and range readings wobble; without these floors a parked vehicle would emit a
+# row every poll and the table would be mostly noise.
+MOVE_M = 25
+RANGE_M = 150
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    import math
+    R = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lon2 - lon1)
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(h))
+
+
+def poll_vehicles():
+    """One poll of free_bike_status. Independent of the station poller."""
+    started = time.time()
+    polled_at = datetime.now(timezone.utc)
+    seen = written = 0
+    status, error = "ok", None
+
+    conn = connect()
+    try:
+        ensure_schema(conn)
+        feeds = gbfs.discover_feeds()
+        _, bikes = gbfs.fetch_vehicles(feeds)
+        seen = len(bikes)
+
+        current = {
+            r[0]: (r[1], r[2], r[3], r[4], r[5])
+            for r in conn.execute(
+                "SELECT bike_id, lat, lon, range_m, is_disabled, is_reserved FROM vehicle_current")
+        }
+        changed = []
+        for b in bikes:
+            bid = b.get("bike_id")
+            lat, lon = b.get("lat"), b.get("lon")
+            if not bid or lat is None or lon is None:
+                continue
+            rng = int(b.get("current_range_meters") or 0)
+            dis, res = int(b.get("is_disabled") or 0), int(b.get("is_reserved") or 0)
+            prev = current.get(bid)
+            if prev is not None:
+                moved = _haversine_m(prev[0], prev[1], lat, lon) if prev[0] is not None else 1e9
+                if (moved < MOVE_M and abs((prev[2] or 0) - rng) < RANGE_M
+                        and prev[3] == dis and prev[4] == res):
+                    continue
+            changed.append((bid, polled_at, lat, lon, rng, dis, res))
+
+        if changed:
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """INSERT INTO vehicle_status
+                       (bike_id, observed_at, lat, lon, range_m, is_disabled, is_reserved)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT (bike_id, observed_at) DO NOTHING""", changed)
+                cur.executemany(
+                    """INSERT INTO vehicle_current
+                       (bike_id, observed_at, lat, lon, range_m, is_disabled, is_reserved)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT (bike_id) DO UPDATE SET
+                         observed_at=EXCLUDED.observed_at, lat=EXCLUDED.lat, lon=EXCLUDED.lon,
+                         range_m=EXCLUDED.range_m, is_disabled=EXCLUDED.is_disabled,
+                         is_reserved=EXCLUDED.is_reserved""", changed)
+            written = len(changed)
+    except Exception as exc:
+        status = "error"
+        error = f"{type(exc).__name__}: {exc}"[:500]
+    finally:
+        conn.close()
+
+    return {"status": status, "polled_at": polled_at.isoformat(), "vehicles_seen": seen,
+            "rows_written": written, "unchanged": seen - written,
+            "duration_ms": int((time.time() - started) * 1000), "error": error}

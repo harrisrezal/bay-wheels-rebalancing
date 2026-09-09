@@ -68,3 +68,31 @@ CREATE TABLE IF NOT EXISTS poll_log (
     error             TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_poll_log_status ON poll_log (status, polled_at);
+
+-- Individual free-floating vehicles, from GBFS free_bike_status. Collected to test the
+-- van inference against an independent signal: a rider can only make current_range_meters
+-- go DOWN, so a rise means the battery was charged or swapped, which only the operator
+-- does. A position jump with no range drop means the vehicle was carried, not ridden.
+--
+-- Change-data-capture as with stations: a parked vehicle emits nothing.
+CREATE TABLE IF NOT EXISTS vehicle_status (
+    bike_id      TEXT        NOT NULL,
+    observed_at  TIMESTAMPTZ NOT NULL,
+    lat          DOUBLE PRECISION,
+    lon          DOUBLE PRECISION,
+    range_m      INTEGER,
+    is_disabled  SMALLINT,
+    is_reserved  SMALLINT,
+    PRIMARY KEY (bike_id, observed_at)
+);
+CREATE INDEX IF NOT EXISTS idx_vehicle_observed ON vehicle_status (observed_at);
+
+CREATE TABLE IF NOT EXISTS vehicle_current (
+    bike_id      TEXT PRIMARY KEY,
+    observed_at  TIMESTAMPTZ NOT NULL,
+    lat          DOUBLE PRECISION,
+    lon          DOUBLE PRECISION,
+    range_m      INTEGER,
+    is_disabled  SMALLINT,
+    is_reserved  SMALLINT
+);

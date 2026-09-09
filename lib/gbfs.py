@@ -62,6 +62,12 @@ def fetch_info(feeds):
     return doc["data"]["stations"]
 
 
+def fetch_vehicles(feeds):
+    """Free-floating vehicles with individual ids and battery range."""
+    doc = fetch_json(feeds["free_bike_status"])
+    return doc.get("last_updated"), doc["data"]["bikes"]
+
+
 def state_tuple(station):
     """The comparable state of a station, for change detection."""
     return tuple(station.get(f) for f in STATUS_FIELDS)
