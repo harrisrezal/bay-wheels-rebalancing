@@ -182,7 +182,20 @@ def _haversine_m(lat1, lon1, lat2, lon2):
 
 
 def poll_vehicles():
-    """One poll of free_bike_status. Independent of the station poller."""
+    """One poll of free_bike_status. Independent of the station poller.
+
+    CONSTRAINT FOR ANY ANALYSIS BUILT ON THIS. The "range went up, so the operator
+    touched it" inference is only safe while a vehicle is CONTINUOUSLY present in this
+    feed. Lyft's Pillar docks recharge an ebike in place over several hours, and
+    deployment is partial and market-specific — confirmed for Citi Bike in NYC and
+    still expanding there, unconfirmed for Bay Wheels.
+
+    Since free_bike_status contains only vehicles NOT in docks, a bike that vanishes
+    from the feed and returns with more range was docked in between, and a charging
+    dock may have done the work rather than a van. Those gapped observations must be
+    excluded. A range rise across an unbroken run of observations has no dock
+    explanation and remains operator-only evidence.
+    """
     started = time.time()
     polled_at = datetime.now(timezone.utc)
     seen = written = 0
