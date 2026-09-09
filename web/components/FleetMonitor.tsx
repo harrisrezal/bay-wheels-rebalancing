@@ -345,11 +345,11 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
         </dl>
 
         <div className={`${styles.vanRow} ${isNight ? styles.vanNight : ""} mono`}>
-          {isNight
-            ? "23:00–06:00 · no rebalancing detected all night"
-            : vansNow > 0
-              ? `${vansNow} rebalancing van event${vansNow > 1 ? "s" : ""} right now`
-              : "no van activity this minute"}
+          {vansNow > 0
+            ? `${vansNow} inferred van move${vansNow > 1 ? "s" : ""} in this frame`
+            : isNight
+              ? "overnight · van activity is near-absent"
+              : "no van activity inferred in this frame"}
         </div>
 
         <div className={styles.jump}>
@@ -367,7 +367,7 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
         <li><i style={{ background: "var(--alarm)" }} />No bikes at all</li>
         <li><i style={{ background: "var(--brass)" }} />No free docks</li>
         <li><i style={{ background: "var(--warn)" }} />Stocked but short of demand</li>
-        <li><i className={styles.ring} />Van event</li>
+        <li><i className={styles.ring} />Inferred van move</li>
       </ul>
     </main>
   );
