@@ -19,6 +19,22 @@ Two qualifiers separate real failures from noise:
 Lost trips come from demand_baseline, so they inherit its lower-bound caveat: the rate
 during a stockout is assumed equal to the rate before it, when a station empties
 precisely because demand was high.
+
+SCOPE: EBIKES ONLY, and this is a choice rather than an oversight. Ebikes are 82.5% of
+trips, and a station holding only classic bikes looks stocked while serving under a
+fifth of demand — the failure mode invisible to any inventory count, which is the whole
+subject here.
+
+What that leaves out, measured rather than waved away: classic starvation runs at 19.7%
+of station-hours against ebikes' 18.6%, so stations run dry for classic riders just as
+often. Each dry hour costs less because classic demand averages 0.25/hr per station
+against 0.86 for ebikes. Scaling the measured ebike figure by that ratio puts classic
+losses near 5,200 trips against 17,970 — so ignoring classic understates total harm by
+roughly 29%.
+
+Worth stating in any writeup, and worth flagging that classic bikes are cheaper to
+rent, so the riders being ignored here may skew price-sensitive. That is an equity
+question this analysis does not answer.
 """
 
 import sys
