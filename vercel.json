@@ -4,10 +4,6 @@
     {
       "path": "/api/poll",
       "schedule": "*/2 * * * *"
-    },
-    {
-      "path": "/api/poll-vehicles",
-      "schedule": "*/30 * * * *"
     }
   ],
   "functions": {

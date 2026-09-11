@@ -69,30 +69,10 @@ CREATE TABLE IF NOT EXISTS poll_log (
 );
 CREATE INDEX IF NOT EXISTS idx_poll_log_status ON poll_log (status, polled_at);
 
--- Individual free-floating vehicles, from GBFS free_bike_status. Collected to test the
--- van inference against an independent signal: a rider can only make current_range_meters
--- go DOWN, so a rise means the battery was charged or swapped, which only the operator
--- does. A position jump with no range drop means the vehicle was carried, not ridden.
---
--- Change-data-capture as with stations: a parked vehicle emits nothing.
-CREATE TABLE IF NOT EXISTS vehicle_status (
-    bike_id      TEXT        NOT NULL,
-    observed_at  TIMESTAMPTZ NOT NULL,
-    lat          DOUBLE PRECISION,
-    lon          DOUBLE PRECISION,
-    range_m      INTEGER,
-    is_disabled  SMALLINT,
-    is_reserved  SMALLINT,
-    PRIMARY KEY (bike_id, observed_at)
-);
-CREATE INDEX IF NOT EXISTS idx_vehicle_observed ON vehicle_status (observed_at);
 
-CREATE TABLE IF NOT EXISTS vehicle_current (
-    bike_id      TEXT PRIMARY KEY,
-    observed_at  TIMESTAMPTZ NOT NULL,
-    lat          DOUBLE PRECISION,
-    lon          DOUBLE PRECISION,
-    range_m      INTEGER,
-    is_disabled  SMALLINT,
-    is_reserved  SMALLINT
-);
+-- NOTE: a vehicle_status table lived here briefly, collecting GBFS free_bike_status to
+-- test the van inference against individual vehicle telemetry. It was removed after two
+-- days: bike_id rotates on every poll (99.3% of ids were never seen twice across 93
+-- polls), which is GBFS's deliberate privacy design to stop third parties
+-- reconstructing riders' trips. Individual vehicles cannot be tracked over time, so
+-- range increases and relocations are undetectable. See git history.

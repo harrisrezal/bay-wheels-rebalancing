@@ -44,24 +44,6 @@ def poll(request: Request):
     return JSONResponse(result)
 
 
-@app.get("/api/poll-vehicles")
-def poll_vehicles(request: Request):
-    """Free-floating vehicles, on a slower cadence than stations.
-
-    Runs every 30 minutes. The signal being chased — a battery charged or swapped, a
-    vehicle carried rather than ridden — changes on the order of hours, so fine
-    resolution buys nothing. At 10 minutes this cost 9-25 MB/day against the station
-    feed's 8.2, which would have cut free-tier runway from seven weeks to about three.
-
-    This is a TIME-BOXED EXPERIMENT, not permanent collection: enough days to test
-    whether operator intervention on individual vehicles corroborates the van events
-    inferred from station counts, then switch it off.
-    """
-    if not _authorized(request):
-        return JSONResponse({"error": "unauthorized"}, status_code=401)
-    return JSONResponse(store_pg.poll_vehicles())
-
-
 @app.get("/api/health")
 def health(request: Request):
     if not _authorized(request):
