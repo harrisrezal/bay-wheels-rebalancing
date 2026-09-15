@@ -13,7 +13,9 @@ export type Point = {
   starved: number; // stations serving with zero ebikes
   empty: number;   // stations serving with zero bikes
   full: number;   // stations with no free dock
-  short?: number; // stocked but short of expected demand
+  short?: number;  // stocked but short of expected demand
+  doomed?: number; // stocked but under an hour of runway
+  watch?: number;  // under three hours of runway
 };
 
 export type Fleet = {
@@ -25,6 +27,8 @@ export type Fleet = {
   /** Same shape, but relative to demand: 0 adequate 1 starved-under-demand
    *  5 stocked-but-short-of-demand 4 off 9 unknown */
   dframes: string[];
+  /** Runway state: 0 fine  1 under 3h of stock  2 under 1h (unsavable)  3 empty  4 off */
+  rframes: string[];
   /** Ebikes available per station per bucket, capped at 35 */
   ebikes: number[][];
   /** [bucketIndex, stationIndex, bikesMoved] — sign gives direction */
@@ -36,5 +40,7 @@ export const STATE = {
   HEALTHY: "0", NO_EBIKES: "1", EMPTY: "2", FULL: "3", OFF: "4",
   /** Stocked, but holding less than an hour of expected demand. */
   SHORT: "5",
+  /** Runway states, used by the At-risk view. */
+  DOOMED: "2", WATCH: "1",
   UNKNOWN: "9",
 } as const;

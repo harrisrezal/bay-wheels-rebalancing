@@ -29,6 +29,7 @@ const RGB = {
   full:     [201, 169,  97] as [number, number, number],
   off:      [ 62,  68,  79] as [number, number, number],
   short:    [232, 148,  76] as [number, number, number],   // stocked but not enough
+  watch:    [201, 169,  97] as [number, number, number],   // under 3h of runway
 };
 
 const VIEWS = [
@@ -56,9 +57,9 @@ function DeckOverlay(props: { layers: unknown[]; getTooltip?: unknown }) {
 }
 
 export default function FleetMonitor({ data }: { data: Fleet }) {
-  const { stations, series, frames, dframes, ebikes, vans } = data;
+  const { stations, series, frames, dframes, rframes, ebikes, vans } = data;
   const [i, setI] = useState(0);
-  const [mode, setMode] = useState<"all" | "ebike" | "demand">("all");
+  const [mode, setMode] = useState<"all" | "ebike" | "demand" | "risk">("all");
   const [playing, setPlaying] = useState(false);
   const [view, setView] = useState({ ...VIEWS[0], pitch: 0, bearing: 0 });
   const [mapError, setMapError] = useState<string | null>(null);
@@ -102,12 +103,18 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [series.length]);
 
-  const frame = mode === "demand" ? dframes[i] : frames[i];
+  const frame = mode === "demand" ? dframes[i] : mode === "risk" ? rframes[i] : frames[i];
   const eb = ebikes[i];
 
   const layers = useMemo(() => {
     const pts = stations.map((s, k) => ({ s, k }));
     const colorFor = (code: string): [number, number, number] =>
+      mode === "risk"
+        ? code === "2" ? RGB.empty            // under an hour: a van cannot arrive in time
+        : code === "1" ? RGB.watch            // under three hours
+        : code === "3" ? RGB.noEbikes         // already out
+        : code === "4" ? RGB.off
+        : RGB.healthy :
       code === STATE.NO_EBIKES ? RGB.noEbikes
       : code === STATE.EMPTY   ? RGB.empty
       : code === STATE.FULL    ? RGB.full
@@ -144,7 +151,8 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
     const haloLayer = new ScatterplotLayer({
       id: `halo-${mode}`,
       data: visible.filter(({ k }) =>
-        frame[k] === STATE.EMPTY || frame[k] === STATE.NO_EBIKES || frame[k] === STATE.SHORT),
+        frame[k] === STATE.EMPTY || frame[k] === STATE.NO_EBIKES
+        || frame[k] === STATE.SHORT || (mode === "risk" && frame[k] === "2")),
       radiusUnits: "pixels",
       stroked: false,
       getPosition: ({ s }) => [s.lo, s.la],
@@ -324,19 +332,23 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
           <button aria-pressed={mode === "all"} onClick={() => setMode("all")}>All bikes</button>
           <button aria-pressed={mode === "ebike"} onClick={() => setMode("ebike")}>Ebikes</button>
           <button aria-pressed={mode === "demand"} onClick={() => setMode("demand")}>Vs demand</button>
+          <button aria-pressed={mode === "risk"} onClick={() => setMode("risk")}>At risk</button>
         </div>
 
         <dl className={styles.stats}>
           <div className={styles.statEbike}>
-            <dt>{mode === "demand" ? "Starved under demand" : "No ebikes"}</dt>
-            <dd className="mono">{d.starved}</dd>
+            <dt>{mode === "risk" ? "Under 1h of stock"
+               : mode === "demand" ? "Starved under demand" : "No ebikes"}</dt>
+            <dd className="mono">{mode === "risk" ? (d.doomed ?? 0) : d.starved}</dd>
           </div>
           <div className={styles.statEmpty}>
             <dt>No bikes at all</dt><dd className="mono">{d.empty}</dd>
           </div>
           <div className={mode === "demand" ? styles.statShort : styles.statFull}>
-            <dt>{mode === "demand" ? "Stocked but short" : "No free dock"}</dt>
-            <dd className="mono">{mode === "demand" ? (d.short ?? 0) : d.full}</dd>
+            <dt>{mode === "risk" ? "Under 3h of stock"
+               : mode === "demand" ? "Stocked but short" : "No free dock"}</dt>
+            <dd className="mono">{mode === "risk" ? (d.watch ?? 0)
+               : mode === "demand" ? (d.short ?? 0) : d.full}</dd>
           </div>
           <div>
             <dt>{mode === "ebike" ? "Ebikes available" : "Bikes available"}</dt>
@@ -367,6 +379,7 @@ export default function FleetMonitor({ data }: { data: Fleet }) {
         <li><i style={{ background: "var(--alarm)" }} />No bikes at all</li>
         <li><i style={{ background: "var(--brass)" }} />No free docks</li>
         <li><i style={{ background: "var(--warn)" }} />Stocked but short of demand</li>
+        <li><i style={{ background: "var(--brass)" }} />Under 3h of stock</li>
         <li><i className={styles.ring} />Inferred van move</li>
       </ul>
     </main>

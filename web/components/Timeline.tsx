@@ -12,7 +12,7 @@ export default function Timeline({
 }: {
   series: Point[];
   index: number;
-  mode: "all" | "ebike" | "demand";
+  mode: "all" | "ebike" | "demand" | "risk";
   onScrub: (i: number) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -32,11 +32,14 @@ export default function Timeline({
     const pad = { t: 14, b: 22, l: 0, r: 0 };
     const ih = H - pad.t - pad.b;
     const vals = series.map((d) =>
-      mode === "demand" ? (d.short ?? 0) : mode === "ebike" ? d.starved : d.empty);
+      mode === "risk" ? (d.doomed ?? 0)
+      : mode === "demand" ? (d.short ?? 0)
+      : mode === "ebike" ? d.starved : d.empty);
     const mx = Math.max(...vals) * 1.15 || 1;
     const X = (k: number) => (k * W) / (series.length - 1);
     const Y = (v: number) => pad.t + ih - (v / mx) * ih;
-    const col = mode === "demand" ? CSSVar("--warn")
+    const col = mode === "risk" ? CSSVar("--alarm")
+      : mode === "demand" ? CSSVar("--warn")
       : mode === "ebike" ? CSSVar("--electric") : CSSVar("--alarm");
 
     // Overnight band: the window where no rebalancing was detected at all.
@@ -100,7 +103,8 @@ export default function Timeline({
   return (
     <div className={styles.wrap}>
       <div className={`${styles.head} mono`}>
-        <span>{mode === "demand" ? "Stations stocked but short of demand"
+        <span>{mode === "risk" ? "Stations with under an hour of stock left"
+          : mode === "demand" ? "Stations stocked but short of demand"
           : mode === "ebike" ? "Stations with no ebikes" : "Stations with no bikes at all"}</span>
         <span className={styles.hint}>shaded 23:00–06:00 · no rebalancing detected · drag to scrub</span>
       </div>
