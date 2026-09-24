@@ -19,6 +19,7 @@ is precisely why it kept being violated.
   forecast        starvation prediction, horizon sweep        (read-only)
   dispatch        rebalancing policy backtest                 (read-only)
   export          static JSON for the web app
+  prune           delete Postgres rows already mirrored locally   (last, after sync)
 
 --check verifies freshness without rebuilding, so it is safe to run before quoting a
 number. Exit code 2 means something downstream is older than its input.
@@ -37,17 +38,27 @@ DB = ROOT / "data" / "analysis.duckdb"
 PY_BIN = ROOT / ".venv" / "bin" / "python"
 
 # (step, script, table it produces, time column) — None means no table to timestamp
+# (step, script, args, table it produces, time column). None table/col means the step
+# writes nothing timestamped and is skipped by the freshness check.
 STEPS = [
-    ("sync",           "analysis/sync_from_postgres.py", "station_status",  "observed_at"),
-    ("grid",           "analysis/build_grid.py",         "grid_status",     "bucket"),
-    ("deltas",         "analysis/build_deltas.py",       "station_deltas",  "bucket"),
-    ("calibrate_vans", "analysis/calibrate_vans.py",     "station_deltas",  "bucket"),
-    ("demand",         "analysis/build_demand.py",       "demand_baseline", None),
-    ("outages",        "analysis/build_outages.py",      "outage_events",   "ended_at"),
-    ("forecast",       "analysis/build_forecast.py",     None,              None),
-    ("dispatch",       "analysis/build_dispatch.py",     None,              None),
-    ("export",         "analysis/export_web.py",         None,              None),
+    ("sync",           "analysis/sync_from_postgres.py", [],          "station_status",  "observed_at"),
+    ("grid",           "analysis/build_grid.py",         [],          "grid_status",     "bucket"),
+    ("deltas",         "analysis/build_deltas.py",       [],          "station_deltas",  "bucket"),
+    ("calibrate_vans", "analysis/calibrate_vans.py",     [],          "station_deltas",  "bucket"),
+    ("demand",         "analysis/build_demand.py",       [],          "demand_baseline", None),
+    ("outages",        "analysis/build_outages.py",      [],          "outage_events",   "ended_at"),
+    ("forecast",       "analysis/build_forecast.py",     [],          None,              None),
+    ("dispatch",       "analysis/build_dispatch.py",     [],          None,              None),
+    ("export",         "analysis/export_web.py",         [],          None,              None),
+    # Prune runs LAST and only after sync has mirrored everything. It deletes from
+    # Postgres based on what DuckDB already holds, so running it standalone — or before
+    # sync — would find recent days unmirrored and (correctly) abort.
+    ("prune",          "analysis/prune_postgres.py",     ["--apply"], None,              None),
 ]
+
+# Steps whose failure is a warning rather than a reason to stop. Prune aborts by design
+# when a day is not yet mirrored; that must not mask an otherwise successful rebuild.
+SOFT_FAIL = {"prune"}
 
 
 def latest(con, table, col):
@@ -73,7 +84,7 @@ def check():
     seen = set()
     print(f"  {'table':<18} {'latest data':<18} {'lag':>9}  state")
     prev_name = prev_ts = None
-    for name, _, table, col in STEPS:
+    for name, _, _, table, col in STEPS:
         if not table or not col or table in seen:
             continue
         seen.add(table)
@@ -119,16 +130,23 @@ def check():
     return 0
 
 
-def run(only=None):
+def run(only=None, prune=True):
     failed = []
-    for name, script, _, _ in STEPS:
+    for name, script, args, _, _ in STEPS:
         if only and name not in only:
+            continue
+        if name == "prune" and not prune:
+            print(f"\n  -- prune skipped (--no-prune)")
             continue
         print(f"\n{'='*62}\n  {name}\n{'='*62}")
         t0 = time.time()
-        r = subprocess.run([str(PY_BIN), script], cwd=ROOT)
+        r = subprocess.run([str(PY_BIN), script, *args], cwd=ROOT)
         dt = time.time() - t0
         if r.returncode != 0:
+            if name in SOFT_FAIL:
+                print(f"\n  ~~ {name} did not complete (exit {r.returncode}) after {dt:.0f}s")
+                print("  Continuing: this step is optional and deletes nothing when it aborts.")
+                continue
             print(f"\n  !! {name} failed (exit {r.returncode}) after {dt:.0f}s")
             print("  Stopping: later steps would build on a broken table.")
             failed.append(name)
@@ -144,10 +162,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="verify freshness, rebuild nothing")
     ap.add_argument("--only", nargs="*", help="run only these steps")
+    ap.add_argument("--no-prune", action="store_true", help="skip the Postgres prune step")
     a = ap.parse_args()
     if a.check:
         return check()
-    return run(a.only)
+    return run(a.only, prune=not a.no_prune)
 
 
 if __name__ == "__main__":
